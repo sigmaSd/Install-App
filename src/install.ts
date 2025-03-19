@@ -5,7 +5,7 @@
  * creating the necessary directory structure, moving the executable,
  * copying the icon, and creating a .desktop file for Linux systems (or
  * appropriate shortcuts on other OSes).  It also includes functionality for
- * listing and uninstalling installed applications.
+ * listing and uninstalling installed applications, and initializing a new project.
  *
  * **Usage:**
  *
@@ -43,6 +43,19 @@
  * Where `<app_name>` is the name of the application as specified in its
  * `install.json` file.
  *
+ * **Initializing a new project:**
+ *
+ * ```bash
+ * deno run -A jsr:@sigmasd/install-app init <app_name>
+ * ```
+ *
+ *  Where `<app_name>` is desired name for your application.  This command will:
+ *   1. Create an `assets` directory in the current working directory.
+ *   2. Create a default `install.json` file inside the `assets` directory,
+ *      pre-populated with the provided `<app_name>`.
+ *   3. Create a placeholder `icon.svg` file inside the `assets` directory.
+ *   4. Print instructions for next steps (creating your application's entrypoint, customizing the icon and install.json, and running the install command).
+ *
  * **Project Structure:**
  *
  * Your project should have the following structure:
@@ -51,7 +64,7 @@
  * my-app/
  * ├── assets/
  * │   ├── install.json  (Installation metadata)
- * │   └── <icon_name>.png (Your application's icon, referenced in install.json)
+ * │   └── <icon_name>.svg (Your application's icon, referenced in install.json)
  * ├── src/
  * │   └── <entrypoint>.ts  (Your application's main entry point)
  * └── ... other files ...
@@ -67,7 +80,7 @@
  *   "name": "<app_name>",         // The name of your application (used for the executable and shortcut)
  *   "version": "<version_string>", // The version of your application (informational)
  *   "description": "<description>", // A short description of your application (informational)
- *   "icon": "<icon_name>.png"   // The filename of your application's icon (within the assets directory)
+ *   "icon": "<icon_name>.svg"   // The filename of your application's icon (within the assets directory)
  * }
  * ```
  *
@@ -77,8 +90,8 @@
  *  *   **`version`:**  The version of your application (e.g., "1.0.0").
  *  *   **`description`:** A short description of your application.
  *  *   **`icon`:** The filename of your application's icon file (e.g.,
- *      "my-app-icon.png").  This file *must* be located in the `assets`
- *      directory.  It should be a PNG file.
+ *      "my-app-icon.svg").  This file *must* be located in the `assets`
+ *      directory.
  *
  * **Installation Process:**
  *
@@ -111,7 +124,7 @@
  *   "name": "my-app",
  *   "version": "1.0.0",
  *   "description": "My awesome app",
- *   "icon": "icon.png"
+ *   "icon": "icon.svg"
  * }
  * ```
  *
@@ -130,7 +143,7 @@
 import { dirname, join } from "jsr:@std/path@^1.0.8";
 import { ensureDirSync, existsSync } from "jsr:@std/fs@1";
 import { assert } from "jsr:@std/assert@^1/assert";
-import { getDataDir } from "./utils.ts";
+import { getDataDir, placeholderIconData } from "./utils.ts";
 
 interface InstallMetadata {
   name: string;
@@ -262,6 +275,41 @@ function uninstallApp(appName: string) {
   }
 }
 
+function initApp(appName: string) {
+  const assetsDir = join(Deno.cwd(), "assets");
+  ensureDirSync(assetsDir);
+
+  const installJsonPath = join(assetsDir, "install.json");
+  const iconPath = join(assetsDir, "icon.svg");
+
+  const defaultInstallJson = {
+    name: appName,
+    version: "0.1.0",
+    description: "My awesome Deno application",
+    icon: "icon.svg",
+  };
+
+  Deno.writeTextFileSync(
+    installJsonPath,
+    JSON.stringify(defaultInstallJson, null, 2),
+  );
+
+  // Create a simple placeholder icon.
+  Deno.writeFileSync(iconPath, placeholderIconData);
+
+  console.log(`Initialized project for "${appName}".`);
+  console.log(`Created directory: ${assetsDir}`);
+  console.log(`Created file: ${installJsonPath}`);
+  console.log(`Created file: ${iconPath}`);
+  console.log("\nNext steps:");
+  console.log("1. Create your application entrypoint (e.g., src/main.ts).");
+  console.log("2. Customize assets/install.json with your app's details.");
+  console.log("3. Replace assets/icon.svg with your application's icon.");
+  console.log(
+    `4. Run 'deno run -A jsr:@sigmasd/install-app install <entrypoint.ts>' to install.`,
+  );
+}
+
 if (import.meta.main) {
   if (Deno.build.os !== "linux") {
     console.log("Unsupported OS, feel free to open a PR");
@@ -300,11 +348,21 @@ if (import.meta.main) {
       uninstallApp(appName);
       break;
     }
+    case "init": {
+      const appName = Deno.args[1];
+      if (!appName) {
+        console.error("Please provide a name for your application.");
+        Deno.exit(1);
+      }
+      initApp(appName);
+      break;
+    }
     default:
       console.log(
         "Usage: deno run -A jsr:@sigmasd/install-app <command> [args]",
       );
       console.log("Commands:");
+      console.log("  init <app_name>          Initialize a new project");
       console.log("  install <entrypoint.ts>  Install an application");
       console.log("  list                     List installed applications");
       console.log("  uninstall <app_name>     Uninstall an application");
