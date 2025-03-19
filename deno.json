@@ -1,0 +1,5 @@
+{
+  "name": "@sigmasd/install-app",
+  "version": "0.1.0",
+  "exports": "./install.ts"
+}
