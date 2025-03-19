@@ -154,32 +154,40 @@ interface InstallMetadata {
 
 const BASE_INSTALL_DIR_NAME = "deno-installed-apps";
 
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 function installApp(
-  { metadata, appDir }: { metadata: InstallMetadata; appDir: string },
+  { binName, metadata, appDir }: {
+    binName: string;
+    metadata: InstallMetadata;
+    appDir: string;
+  },
 ) {
   const dataDir = getDataDir();
   assert(dataDir, "Could not determine user data directory.");
   const appsPath = join(dataDir, BASE_INSTALL_DIR_NAME);
-  const appPath = join(appsPath, metadata.name);
-  ensureDirSync(appPath);
+  const hostBinDirPath = join(appsPath, binName);
+  ensureDirSync(hostBinDirPath);
 
   // 1. Install App
-  Deno.renameSync(metadata.name, join(appPath, metadata.name));
+  Deno.renameSync(binName, join(hostBinDirPath, binName));
   // 2. Install Icon
   Deno.copyFileSync(
     join(appDir, "assets", metadata.icon),
-    join(appPath, metadata.icon),
+    join(hostBinDirPath, metadata.icon),
   );
   // 3. Install Metadata by creating a linux desktop file
   const applicationsDir = join(dataDir, "applications");
   ensureDirSync(applicationsDir); // Ensure applications directory exists.
   Deno.writeTextFileSync(
-    join(applicationsDir, `${metadata.name}.desktop`),
+    join(applicationsDir, `${binName}.desktop`),
     `
 [Desktop Entry]
 Name=${metadata.name}
-Exec=${join(appPath, metadata.name)}
-Icon=${join(appPath, metadata.icon)}
+Exec=${join(hostBinDirPath, binName)}
+Icon=${join(hostBinDirPath, metadata.icon)}
 Type=Application
 Categories=Utility;
 `,
@@ -189,9 +197,9 @@ Categories=Utility;
 }
 
 async function compileApp(
-  { appEntryPoint: app, metadata }: {
+  { appEntryPoint: app, outputPath }: {
     appEntryPoint: string;
-    metadata: InstallMetadata;
+    outputPath: string;
   },
 ) {
   const result = await new Deno.Command("deno", {
@@ -200,7 +208,7 @@ async function compileApp(
       "--allow-all",
       "--no-check",
       "--output",
-      metadata.name,
+      outputPath,
       app,
     ],
   }).spawn().status;
@@ -237,7 +245,19 @@ function listApps() {
     const apps = [];
     for (const dirEntry of Deno.readDirSync(appsPath)) {
       if (dirEntry.isDirectory) {
-        apps.push(dirEntry.name);
+        const appName = dirEntry.name;
+        const desktopFilePath = join(
+          dataDir,
+          "applications",
+          `${appName}.desktop`,
+        );
+        const originalName = Deno.readTextFileSync(desktopFilePath)
+          .match(/Name=(.*)/)?.at(1)?.trim();
+        if (originalName) {
+          apps.push(originalName);
+        } else {
+          console.error("Could not read orignal name of", appName);
+        }
       }
     }
     if (apps.length === 0) {
@@ -257,7 +277,11 @@ function uninstallApp(appName: string) {
   const dataDir = getDataDir();
   assert(dataDir, "Could not determine user data directory.");
   const appPath = join(dataDir, BASE_INSTALL_DIR_NAME, appName);
-  const desktopFilePath = join(dataDir, "applications", `${appName}.desktop`);
+  const desktopFilePath = join(
+    dataDir,
+    "applications",
+    `${appName}.desktop`,
+  );
 
   if (!existsSync(appPath)) {
     console.log(`Application "${appName}" is not installed.`);
@@ -332,8 +356,9 @@ if (import.meta.main) {
         console.log("Could not find install.json");
         Deno.exit(1);
       }
-      await compileApp({ appEntryPoint, metadata });
-      installApp({ metadata, appDir });
+      const binName = sanitizeFileName(metadata.name);
+      await compileApp({ appEntryPoint, outputPath: binName });
+      installApp({ binName, metadata, appDir });
       break;
     }
     case "list":
@@ -345,7 +370,7 @@ if (import.meta.main) {
         console.error("Please provide the name of the app to uninstall.");
         Deno.exit(1);
       }
-      uninstallApp(appName);
+      uninstallApp(sanitizeFileName(appName));
       break;
     }
     case "init": {
