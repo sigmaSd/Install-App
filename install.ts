@@ -1,5 +1,6 @@
 /**
- * @module install
+ * # Install App
+ *
  * This module provides utilities for installing applications. It handles
  * creating the necessary directory structure, moving the executable,
  * copying the icon, and creating a .desktop file for Linux systems (or
@@ -13,6 +14,16 @@
  *
  * Where `<entrypoint.ts>` is the main entry point of your application that
  * you would normally compile.
+ *
+ * You can also add this as a task to deno.json which can be more convenient:
+ *
+ * ```json
+ * {
+ *   "tasks": {
+ *     "install": "deno run -A jsr:@sigmasd/install-app <entrypoint.ts>"
+ *   }
+ * }
+ * ```
  *
  * **Project Structure:**
  *
@@ -94,6 +105,8 @@
  *
  * This will create an executable named `my-app`, copy the icon, and create
  * a desktop shortcut/alias named `my-app`.
+
+ * @module
  */
 
 import { dirname, join } from "jsr:@std/path@^1.0.8";
