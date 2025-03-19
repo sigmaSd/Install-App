@@ -44,7 +44,7 @@
  * Create a file named `install.json` within the `assets` directory. This file
  * contains metadata about your application:
  *
- * ```json
+ * ```jsonc
  * {
  *   "name": "<app_name>",         // The name of your application (used for the executable and shortcut)
  *   "version": "<version_string>", // The version of your application (informational)
