@@ -4,7 +4,7 @@ This module provides utilities for installing applications. It handles creating
 the necessary directory structure, moving the executable, copying the icon, and
 creating a .desktop file for Linux systems (or appropriate shortcuts on other
 OSes). It also includes functionality for listing and uninstalling installed
-applications.
+applications, and initializing a new project.
 
 **Usage:**
 
@@ -42,6 +42,21 @@ deno run -A jsr:@sigmasd/install-app uninstall <app_name>
 Where `<app_name>` is the name of the application as specified in its
 `install.json` file.
 
+**Initializing a new project:**
+
+```bash
+deno run -A jsr:@sigmasd/install-app init <app_name>
+```
+
+Where `<app_name>` is desired name for your application. This command will:
+
+1. Create an `assets` directory in the current working directory.
+2. Create a default `install.json` file inside the `assets` directory,
+   pre-populated with the provided `<app_name>`.
+3. Create a placeholder `icon.svg` file inside the `assets` directory.
+4. Print instructions for next steps (creating your application's entrypoint,
+   customizing the icon and install.json, and running the install command).
+
 **Project Structure:**
 
 Your project should have the following structure:
@@ -50,7 +65,7 @@ Your project should have the following structure:
 my-app/
 ├── assets/
 │   ├── install.json  (Installation metadata)
-│   └── <icon_name>.png (Your application's icon, referenced in install.json)
+│   └── <icon_name>.svg (Your application's icon, referenced in install.json)
 ├── src/
 │   └── <entrypoint>.ts  (Your application's main entry point)
 └── ... other files ...
@@ -66,7 +81,7 @@ contains metadata about your application:
   "name": "<app_name>", // The name of your application (used for the executable and shortcut)
   "version": "<version_string>", // The version of your application (informational)
   "description": "<description>", // A short description of your application (informational)
-  "icon": "<icon_name>.png" // The filename of your application's icon (within the assets directory)
+  "icon": "<icon_name>.svg" // The filename of your application's icon (within the assets directory)
 }
 ```
 
@@ -76,8 +91,7 @@ contains metadata about your application:
 - **`version`:** The version of your application (e.g., "1.0.0").
 - **`description`:** A short description of your application.
 - **`icon`:** The filename of your application's icon file (e.g.,
-  "my-app-icon.png"). This file _must_ be located in the `assets` directory. It
-  should be a PNG file.
+  "my-app-icon.svg"). This file _must_ be located in the `assets` directory.
 
 **Installation Process:**
 
@@ -111,7 +125,7 @@ contains:
   "name": "my-app",
   "version": "1.0.0",
   "description": "My awesome app",
-  "icon": "icon.png"
+  "icon": "icon.svg"
 }
 ```
 
