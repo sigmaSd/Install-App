@@ -100,7 +100,7 @@
  * You would install it with:
  *
  * ```bash
- * deno run -A jsr:@sigmasd/install@0/install.ts src/my_app.ts
+ * deno run -A jsr:@sigmasd/install-app src/my_app.ts
  * ```
  *
  * This will create an executable named `my-app`, copy the icon, and create
