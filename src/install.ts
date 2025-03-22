@@ -12,18 +12,18 @@
  * **Installation:**
  *
  * ```bash
- * deno run -A jsr:@sigmasd/install-app install <entrypoint.ts>
+ * deno run -A jsr:@sigmasd/install-app install <executable>
  * ```
  *
- * Where `<entrypoint.ts>` is the main entry point of your application that
- * you would normally compile.
+ * Where `<executable>` is the compiled executable of your application.
  *
  * You can also add this as a task to deno.json which can be more convenient:
  *
  * ```json
  * {
  *   "tasks": {
- *     "install": "deno run -A jsr:@sigmasd/install-app install <entrypoint.ts>"
+ *     "compile": "deno compile --output my-app src/main.ts",
+ *     "install": "deno task compile && deno run -A jsr:@sigmasd/install-app install my-app"
  *   }
  * }
  * ```
@@ -54,7 +54,7 @@
  *   2. Create a default `install.json` file inside the `assets` directory,
  *      pre-populated with the provided `<app_name>`.
  *   3. Create a placeholder `icon.svg` file inside the `assets` directory.
- *   4. Print instructions for next steps (creating your application's entrypoint, customizing the icon and install.json, and running the install command).
+ *   4. Print instructions for next steps (creating your application's entrypoint, compiling, customizing the icon and install.json, and running the install command).
  *
  * **Project Structure:**
  *
@@ -95,19 +95,16 @@
  *
  * **Installation Process:**
  *
- * 1.  **Compilation:** The script first compiles your application using
- *     `deno compile`. The output executable is named according to the `name`
- *     field in `install.json`.
- * 2.  **Directory Creation:** A directory named `deno-installed-apps` is created
+ * 1.  **Directory Creation:** A directory named `deno-installed-apps` is created
  *     within the user's data directory (e.g., `%APPDATA%\deno-installed-apps` on
  *     Windows, `~/.local/share/deno-installed-apps` on Linux,
  *     `~/Library/Application Support/deno-installed-apps` on macOS).  An
  *     `applications` directory is also created within the user's data
  *     directory, if it doesn't already exist.
- * 3.  **File Copying:**
+ * 2.  **File Copying:**
  *     *   The compiled executable is moved to the `deno-installed-apps/<name>` directory.
  *     *   The application icon is copied to the `deno-installed-apps/<name>` directory.
- * 4.  **Shortcut Creation:**
+ * 3.  **Shortcut Creation:**
  *     *   **Linux:** A `.desktop` file is created in the `applications`
  *         directory, allowing the application to appear in application
  *         launchers.
@@ -116,7 +113,7 @@
  *
  * **Example:**
  *
- * If your application's entry point is `src/my_app.ts` and your `install.json`
+ * Taking deno app as an example, if your application's entry point is `src/my_app.ts`, your compiled executable is `my-app`, and your `install.json`
  * contains:
  *
  * ```json
@@ -128,19 +125,25 @@
  * }
  * ```
  *
- * You would install it with:
+ * First, compile the application:
  *
  * ```bash
- * deno run -A jsr:@sigmasd/install-app install src/my_app.ts
+ * deno compile --output my-app src/my_app.ts
  * ```
  *
- * This will create an executable named `my-app`, copy the icon, and create
+ * Then, install it with:
+ *
+ * ```bash
+ * deno run -A jsr:@sigmasd/install-app install my-app
+ * ```
+ *
+ * This will move the executable named `my-app`, copy the icon, and create
  * a desktop shortcut/alias named `my-app`.
  *
  * @module
  */
 
-import { dirname, join } from "jsr:@std/path@^1.0.8";
+import { join } from "jsr:@std/path@^1.0.8/join";
 import { ensureDirSync, existsSync } from "jsr:@std/fs@1";
 import { assert } from "jsr:@std/assert@^1/assert";
 import { getDataDir, placeholderIconData } from "./utils.ts";
@@ -159,8 +162,8 @@ function sanitizeFileName(name: string): string {
 }
 
 function installApp(
-  { binName, metadata, appDir }: {
-    binName: string;
+  { executablePath, metadata, appDir }: {
+    executablePath: string;
     metadata: InstallMetadata;
     appDir: string;
   },
@@ -168,11 +171,12 @@ function installApp(
   const dataDir = getDataDir();
   assert(dataDir, "Could not determine user data directory.");
   const appsPath = join(dataDir, BASE_INSTALL_DIR_NAME);
+  const binName = sanitizeFileName(metadata.name);
   const hostBinDirPath = join(appsPath, binName);
   ensureDirSync(hostBinDirPath);
 
   // 1. Install App
-  Deno.renameSync(binName, join(hostBinDirPath, binName));
+  Deno.renameSync(executablePath, join(hostBinDirPath, binName));
   // 2. Install Icon
   Deno.copyFileSync(
     join(appDir, "assets", metadata.icon),
@@ -194,29 +198,6 @@ Categories=Utility;
   );
 
   console.log(`Application "${metadata.name}" installed successfully.`);
-}
-
-async function compileApp(
-  { appEntryPoint: app, outputPath }: {
-    appEntryPoint: string;
-    outputPath: string;
-  },
-) {
-  const result = await new Deno.Command("deno", {
-    args: [
-      "compile",
-      "--allow-all",
-      "--no-check",
-      "--output",
-      outputPath,
-      app,
-    ],
-  }).spawn().status;
-
-  if (!result.success) {
-    console.error("Compilation failed:");
-    Deno.exit(1);
-  }
 }
 
 function readMetaData(
@@ -276,11 +257,12 @@ function listApps() {
 function uninstallApp(appName: string) {
   const dataDir = getDataDir();
   assert(dataDir, "Could not determine user data directory.");
-  const appPath = join(dataDir, BASE_INSTALL_DIR_NAME, appName);
+  const binName = sanitizeFileName(appName);
+  const appPath = join(dataDir, BASE_INSTALL_DIR_NAME, binName);
   const desktopFilePath = join(
     dataDir,
     "applications",
-    `${appName}.desktop`,
+    `${binName}.desktop`,
   );
 
   if (!existsSync(appPath)) {
@@ -326,11 +308,11 @@ function initApp(appName: string) {
   console.log(`Created file: ${installJsonPath}`);
   console.log(`Created file: ${iconPath}`);
   console.log("\nNext steps:");
-  console.log("1. Create your application entrypoint (e.g., src/main.ts).");
+  console.log("1. Compile your application to an ex.");
   console.log("2. Customize assets/install.json with your app's details.");
   console.log("3. Replace assets/icon.svg with your application's icon.");
   console.log(
-    `4. Run 'deno run -A jsr:@sigmasd/install-app install <entrypoint.ts>' to install.`,
+    `4. Run 'deno run -A jsr:@sigmasd/install-app install <executable_name>' to install.`,
   );
 }
 
@@ -344,21 +326,20 @@ if (import.meta.main) {
 
   switch (command) {
     case "install": {
-      const appEntryPoint = Deno.args[1];
-      if (!appEntryPoint) {
-        console.log("Please provide the app path");
+      const executablePath = Deno.args[1];
+      if (!executablePath) {
+        console.log("Please provide the executable path");
         Deno.exit(1);
       }
-      const appDir = dirname(appEntryPoint);
+      // Assuming the executable is in the project root or user-provided path.
+      const appDir = Deno.cwd(); // Default to current working directory.  Best guess.
 
       const metadata = readMetaData({ appDir });
       if (!metadata) {
         console.log("Could not find install.json");
         Deno.exit(1);
       }
-      const binName = sanitizeFileName(metadata.name);
-      await compileApp({ appEntryPoint, outputPath: binName });
-      installApp({ binName, metadata, appDir });
+      installApp({ executablePath, metadata, appDir });
       break;
     }
     case "list":
@@ -370,7 +351,7 @@ if (import.meta.main) {
         console.error("Please provide the name of the app to uninstall.");
         Deno.exit(1);
       }
-      uninstallApp(sanitizeFileName(appName));
+      uninstallApp(appName);
       break;
     }
     case "init": {
@@ -388,7 +369,7 @@ if (import.meta.main) {
       );
       console.log("Commands:");
       console.log("  init <app_name>          Initialize a new project");
-      console.log("  install <entrypoint.ts>  Install an application");
+      console.log("  install <executable>     Install an application");
       console.log("  list                     List installed applications");
       console.log("  uninstall <app_name>     Uninstall an application");
       Deno.exit(1);
