@@ -77,72 +77,85 @@
  *
  * ```jsonc
  * {
- *   "name": "<app_name>",         // The name of your application (used for the executable and shortcut)
+ *   "name": "<app_name>",         // The user-visible name of your application
+ *   "id": "<app_id>",             // Optional: Linux Application ID (e.g., com.example.MyApp), The id is important for the icon to work correctly.
  *   "version": "<version_string>", // The version of your application (informational)
  *   "description": "<description>", // A short description of your application (informational)
  *   "icon": "<icon_name>.svg"   // The filename of your application's icon (within the assets directory)
  * }
  * ```
  *
- *  *   **`name`:**  The name of your application.  This will be the name of
- *      the executable and the desktop shortcut/alias.  *It should be a valid
- *      filename (no spaces or special characters).*
+ *  *   **`name`:**  The user-visible name of your application (e.g., "My Awesome App").
+ *      This is used in the `.desktop` file. The executable file itself will
+ *      be named based on a sanitized version of this name (or the sanitized `id` if provided).
+ *  *   **`id` (Optional):** A unique identifier for your application, typically in
+ *      reverse domain name notation (e.g., `com.example.MyApp`). *Required for standard
+ *      Linux integration.* If provided:
+ *      *   The icon file (must be `.svg`) will be installed to the standard
+ *          system icon location (`~/.local/share/icons/hicolor/scalable/apps/<id>.svg`).
+ *      *   The `.desktop` file will be named `<id>.desktop` in `~/.local/share/applications/`.
+ *      *   The `Icon=` field in the `.desktop` file will use the `id`.
+ *      *   The internal installation directory will still use the *sanitized* `name`.
  *  *   **`version`:**  The version of your application (e.g., "1.0.0").
  *  *   **`description`:** A short description of your application.
  *  *   **`icon`:** The filename of your application's icon file (e.g.,
- *      "my-app-icon.svg").  This file *must* be located in the `assets`
- *      directory.
+ *      "my-app-icon.svg"). This file *must* be located in the `assets`
+ *      directory. *If `id` is provided, this icon file must be an SVG.*
  *
- * **Installation Process:**
+ * **Installation Process (Linux):**
  *
- * 1.  **Directory Creation:** A directory named `deno-installed-apps` is created
- *     within the user's data directory (e.g., `%APPDATA%\deno-installed-apps` on
- *     Windows, `~/.local/share/deno-installed-apps` on Linux,
- *     `~/Library/Application Support/deno-installed-apps` on macOS).  An
- *     `applications` directory is also created within the user's data
- *     directory, if it doesn't already exist.
- * 2.  **File Copying:**
- *     *   The compiled executable is moved to the `deno-installed-apps/<name>` directory.
- *     *   The application icon is copied to the `deno-installed-apps/<name>` directory.
- * 3.  **Shortcut Creation:**
- *     *   **Linux:** A `.desktop` file is created in the `applications`
- *         directory, allowing the application to appear in application
- *         launchers.
- *     *   **Other OSes:** A warning is printed that shortcut creation is not
- *         yet implemented.
+ * 1.  **Directory Creation:** A base directory `deno-installed-apps` is created
+ *     within the user's data directory (`~/.local/share/deno-installed-apps`).
+ *     Inside this, a directory for the application is created using the *sanitized* `name`
+ *     from `install.json` (e.g., `~/.local/share/deno-installed-apps/my_awesome_app`).
+ *     Standard directories like `~/.local/share/applications` and
+ *     `~/.local/share/icons/hicolor/scalable/apps` are ensured to exist.
+ * 2.  **File Placement:**
+ *     *   The compiled executable is moved into the application's specific directory
+ *         (`deno-installed-apps/<sanitized_name>/<sanitized_name>`).
+ *     *   A `metadata.json` file (containing the contents of `install.json`) is
+ *         saved in the application's specific directory.
+ *     *   **Icon:**
+ *         *   If `id` is provided in `install.json`, the SVG icon is copied to
+ *             `~/.local/share/icons/hicolor/scalable/apps/<id>.svg`.
+ *         *   If `id` is *not* provided, the icon (any format) is copied into the
+ *             application's specific directory (`deno-installed-apps/<sanitized_name>/<icon_name>`).
+ * 3.  **Shortcut Creation (.desktop file):**
+ *     *   A `.desktop` file is created in `~/.local/share/applications/`.
+ *     *   **Filename:** Named `<id>.desktop` if `id` is provided, otherwise
+ *         `<sanitized_name>.desktop`.
+ *     *   **Contents:** Includes `Name`, `Exec` (pointing to the executable in
+ *         `deno-installed-apps`), `Type`, `Categories`, and `Icon`.
+ *         *   If `id` is provided, `Icon=<id>`.
+ *         *   If `id` is *not* provided, `Icon=<full_path_to_icon_in_deno-installed-apps>`.
+ *
+ * **Other OSes:** Installation currently only supports Linux. A warning is printed
+ * on other operating systems.
  *
  * **Example:**
  *
- * Taking deno app as an example, if your application's entry point is `src/my_app.ts`, your compiled executable is `my-app`, and your `install.json`
- * contains:
- *
+ * Given `install.json`:
  * ```json
  * {
- *   "name": "my-app",
+ *   "name": "My App",
+ *   "id": "com.example.my_app",
  *   "version": "1.0.0",
  *   "description": "My awesome app",
  *   "icon": "icon.svg"
  * }
  * ```
+ * And executable `my-app-bin`.
  *
- * First, compile the application:
- *
- * ```bash
- * deno compile --output my-app src/my_app.ts
- * ```
- *
- * Then, install it with:
- *
- * ```bash
- * deno run -A jsr:@sigmasd/install-app install my-app
- * ```
- *
- * This will move the executable named `my-app`, copy the icon, and create
- * a desktop shortcut/alias named `my-app`.
+ * Running `deno run -A jsr:@sigmasd/install-app install my-app-bin` on Linux will:
+ * 1. Create `~/.local/share/deno-installed-apps/My_App/`.
+ * 2. Move `my-app-bin` to `~/.local/share/deno-installed-apps/My_App/My_App`.
+ * 3. Copy `assets/icon.svg` to `~/.local/share/icons/hicolor/scalable/apps/com.example.my_app.svg`.
+ * 4. Create `~/.local/share/applications/com.example.my_app.desktop` with `Name=My App`, `Exec=.../My_App/My_App`, and `Icon=com.example.my_app`.
  *
  * @module
  */
 
+import { extname } from "jsr:@std/path@^1.0.8/extname";
 import { join } from "jsr:@std/path@^1.0.8/join";
 import { ensureDirSync, existsSync } from "jsr:@std/fs@1";
 import { assert } from "jsr:@std/assert@^1/assert";
@@ -150,6 +163,7 @@ import { getDataDir, placeholderIconData } from "./utils.ts";
 
 interface InstallMetadata {
   name: string;
+  id?: string;
   version: string;
   description: string;
   icon: string;
@@ -177,17 +191,56 @@ function installApp(
 
   // 1. Install App
   Deno.renameSync(executablePath, join(hostBinDirPath, binName));
-  // 2. Install Icon
-  Deno.copyFileSync(
-    join(appDir, "assets", metadata.icon),
-    join(hostBinDirPath, metadata.icon),
-  );
-  // 3. Install Metadata by creating a linux desktop file
-  const applicationsDir = join(dataDir, "applications");
-  ensureDirSync(applicationsDir); // Ensure applications directory exists.
   Deno.writeTextFileSync(
-    join(applicationsDir, `${binName}.desktop`),
-    `
+    join(hostBinDirPath, "metadata.json"),
+    JSON.stringify(metadata),
+  );
+
+  if (metadata.id) {
+    const iconExt = extname(metadata.icon);
+    if (iconExt !== ".svg") {
+      throw new Error(
+        `Unsupported icon format: ${iconExt}, we only support SVG icons with ID install for now.`,
+      );
+    }
+    // 2. Install Icon
+    Deno.copyFileSync(
+      join(appDir, "assets", metadata.icon),
+      join(
+        dataDir,
+        "icons",
+        "hicolor",
+        "scalable",
+        "apps",
+        `${metadata.id}${iconExt}`,
+      ),
+    );
+    // 3. Install Metadata by creating a linux desktop file
+    const applicationsDir = join(dataDir, "applications");
+    ensureDirSync(applicationsDir); // Ensure applications directory exists.
+    Deno.writeTextFileSync(
+      join(applicationsDir, `${metadata.id}.desktop`),
+      `
+[Desktop Entry]
+Name=${metadata.name}
+Exec=${join(hostBinDirPath, binName)}
+Icon=${metadata.id}
+Type=Application
+Categories=Utility;
+`,
+    );
+  } else {
+    // 2. Install Icon
+    Deno.copyFileSync(
+      join(appDir, "assets", metadata.icon),
+      join(hostBinDirPath, metadata.icon),
+    );
+    // 3. Install Metadata by creating a linux desktop file
+    const applicationsDir = join(dataDir, "applications");
+    ensureDirSync(applicationsDir); // Ensure applications directory exists.
+    Deno.writeTextFileSync(
+      join(applicationsDir, `${binName}.desktop`),
+      `
 [Desktop Entry]
 Name=${metadata.name}
 Exec=${join(hostBinDirPath, binName)}
@@ -195,7 +248,8 @@ Icon=${join(hostBinDirPath, metadata.icon)}
 Type=Application
 Categories=Utility;
 `,
-  );
+    );
+  }
 
   console.log(`Application "${metadata.name}" installed successfully.`);
 }
@@ -227,11 +281,24 @@ function listApps() {
     for (const dirEntry of Deno.readDirSync(appsPath)) {
       if (dirEntry.isDirectory) {
         const appName = dirEntry.name;
-        const desktopFilePath = join(
-          dataDir,
-          "applications",
-          `${appName}.desktop`,
-        );
+        const metadataPath = join(appsPath, appName, "metadata.json");
+        let id;
+
+        if (existsSync(metadataPath)) {
+          id = JSON.parse(Deno.readTextFileSync(metadataPath)).id;
+        }
+
+        const desktopFilePath = id
+          ? join(
+            dataDir,
+            "applications",
+            `${id}.desktop`,
+          )
+          : join(
+            dataDir,
+            "applications",
+            `${appName}.desktop`,
+          );
         const originalName = Deno.readTextFileSync(desktopFilePath)
           .match(/Name=(.*)/)?.at(1)?.trim();
         if (originalName) {
@@ -259,22 +326,52 @@ function uninstallApp(appName: string) {
   assert(dataDir, "Could not determine user data directory.");
   const binName = sanitizeFileName(appName);
   const appPath = join(dataDir, BASE_INSTALL_DIR_NAME, binName);
-  const desktopFilePath = join(
-    dataDir,
-    "applications",
-    `${binName}.desktop`,
-  );
 
   if (!existsSync(appPath)) {
     console.log(`Application "${appName}" is not installed.`);
     return;
   }
 
+  let metadata;
+  try {
+    metadata = JSON.parse(
+      Deno.readTextFileSync(join(appPath, "metadata.json")),
+    );
+  } catch {
+    /* ignore */
+  }
+
+  let desktopFilePath;
+  if (metadata?.id) {
+    desktopFilePath = join(
+      dataDir,
+      "applications",
+      `${metadata?.id}.desktop`,
+    );
+  } else {
+    desktopFilePath = join(
+      dataDir,
+      "applications",
+      `${binName}.desktop`,
+    );
+  }
+
   try {
     Deno.removeSync(appPath, { recursive: true });
-    if (existsSync(desktopFilePath)) {
-      Deno.removeSync(desktopFilePath);
+    Deno.removeSync(desktopFilePath);
+    if (metadata?.id) {
+      const iconExt = extname(metadata.icon);
+      const iconPath = join(
+        dataDir,
+        "icons",
+        "hicolor",
+        "scalable",
+        "apps",
+        `${metadata.id}${iconExt}`,
+      );
+      Deno.removeSync(iconPath);
     }
+
     console.log(`Application "${appName}" uninstalled successfully.`);
   } catch (error) {
     console.error(`Error uninstalling application "${appName}":`, error);
