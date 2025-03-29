@@ -1,0 +1,7 @@
+{
+  "name": "Example With ID",
+  "id": "io.github.sigmasd.example",
+  "version": "1.0.0",
+  "description": "An example app",
+  "icon": "icon.svg"
+}
