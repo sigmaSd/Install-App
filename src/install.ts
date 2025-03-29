@@ -151,6 +151,7 @@
  * 2. Move `my-app-bin` to `~/.local/share/deno-installed-apps/My_App/My_App`.
  * 3. Copy `assets/icon.svg` to `~/.local/share/icons/hicolor/scalable/apps/com.example.my_app.svg`.
  * 4. Create `~/.local/share/applications/com.example.my_app.desktop` with `Name=My App`, `Exec=.../My_App/My_App`, and `Icon=com.example.my_app`.
+ * 5. You might need to log out and log back to see the icon correctly in your application menu.
  *
  * @module
  */
