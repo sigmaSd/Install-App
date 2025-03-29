@@ -1,6 +1,6 @@
 {
   "name": "@sigmasd/install-app",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "exports": "./src/install.ts",
   "license": "MIT"
 }
